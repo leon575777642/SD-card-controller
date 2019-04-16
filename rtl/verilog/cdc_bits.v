@@ -1,4 +1,4 @@
-// Cross-domain synchronizer
+// Cross-domain bit(s) synchronizer
 //  - if WIDTH is greater than 1, the bits are independently synced. do not use
 //      this directly for bus signals.
 module cdc_bits (

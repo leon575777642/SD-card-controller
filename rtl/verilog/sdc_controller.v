@@ -396,12 +396,15 @@ sd_controller_wb sd_controller_wb0(
 //assign dma_addr_reg_sd_clk = dma_addr_reg_wb_clk;
 //assign data_int_status_reg_wb_clk = data_int_status_reg_sd_clk;
 
-edge_detect cmd_start_edge(.rst(wb_rst_i), .clk(wb_clk_i), .sig(cmd_start), .rise(cmd_start_wb_clk), .fall());
-edge_detect data_int_rst_edge(.rst(wb_rst_i), .clk(wb_clk_i), .sig(data_int_rst), .rise(data_int_rst_wb_clk), .fall());
-edge_detect cmd_int_rst_edge(.rst(wb_rst_i), .clk(wb_clk_i), .sig(cmd_int_rst), .rise(cmd_int_rst_wb_clk), .fall());
-monostable_domain_cross cmd_start_cross(wb_rst_i, wb_clk_i, cmd_start_wb_clk, sd_clk_o, cmd_start_sd_clk);
-monostable_domain_cross data_int_rst_cross(wb_rst_i, wb_clk_i, data_int_rst_wb_clk, sd_clk_o, data_int_rst_sd_clk);
-monostable_domain_cross cmd_int_rst_cross(wb_rst_i, wb_clk_i, cmd_int_rst_wb_clk, sd_clk_o, cmd_int_rst_sd_clk);
+// edge_detect cmd_start_edge(.rst(wb_rst_i), .clk(wb_clk_i), .sig(cmd_start), .rise(cmd_start_wb_clk), .fall());
+// edge_detect data_int_rst_edge(.rst(wb_rst_i), .clk(wb_clk_i), .sig(data_int_rst), .rise(data_int_rst_wb_clk), .fall());
+// edge_detect cmd_int_rst_edge(.rst(wb_rst_i), .clk(wb_clk_i), .sig(cmd_int_rst), .rise(cmd_int_rst_wb_clk), .fall());
+// monostable_domain_cross cmd_start_cross(wb_rst_i, wb_clk_i, cmd_start_wb_clk, sd_clk_o, cmd_start_sd_clk);
+// monostable_domain_cross data_int_rst_cross(wb_rst_i, wb_clk_i, data_int_rst_wb_clk, sd_clk_o, data_int_rst_sd_clk);
+// monostable_domain_cross cmd_int_rst_cross(wb_rst_i, wb_clk_i, cmd_int_rst_wb_clk, sd_clk_o, cmd_int_rst_sd_clk);
+cdc_pulse cmd_start_cross(wb_rst_i, wb_clk_i, cmd_start, sd_clk_o, cmd_start_sd_clk);
+cdc_pulse data_int_rst_cross(wb_rst_i, wb_clk_i, data_int_rst, sd_clk_o, data_int_rst_sd_clk);
+cdc_pulse cmd_int_rst_cross(wb_rst_i, wb_clk_i, cmd_int_rst, sd_clk_o, cmd_int_rst_sd_clk);
 bistable_domain_cross #(32) argument_reg_cross(wb_rst_i, wb_clk_i, argument_reg_wb_clk, sd_clk_o, argument_reg_sd_clk);
 bistable_domain_cross #(`CMD_REG_SIZE) command_reg_cross(wb_rst_i, wb_clk_i, command_reg_wb_clk, sd_clk_o, command_reg_sd_clk);
 bistable_domain_cross #(32) response_0_reg_cross(wb_rst_i, sd_clk_o, response_0_reg_sd_clk, wb_clk_i, response_0_reg_wb_clk);
