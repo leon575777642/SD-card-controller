@@ -1,6 +1,8 @@
+**/.*
 !.gitignore
 sim/rtl_sim/bin/modelsim.ini
 sim/rtl_sim/bin/test/
 sim/rtl_sim/bin/transcript
 sim/rtl_sim/bin/work/
 sim/rtl_sim/log/
+sim/rtl_sim/out/
