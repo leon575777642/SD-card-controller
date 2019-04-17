@@ -410,7 +410,7 @@ cdc_pulse cmd_int_rst_cross(wb_rst_i, wb_clk_i, cmd_int_rst, sd_clk_o, cmd_int_r
 // wb -> sd before commands
 wire argument_reg_synced, command_reg_synced, software_reset_reg_synced, cmd_timeout_reg_synced, data_timeout_reg_synced,
     block_size_reg_synced, controll_setting_reg_synced, clock_divider_reg_synced, block_count_reg_synced, dma_addr_reg_synced;
-wire all_synced = &{argument_reg_synced, command_reg_synced, software_reset_reg_synced, cmd_timeout_reg_synced, data_timeout_reg_synced,
+wire wb2sd_all_synced = &{argument_reg_synced, command_reg_synced, software_reset_reg_synced, cmd_timeout_reg_synced, data_timeout_reg_synced,
     block_size_reg_synced, controll_setting_reg_synced, clock_divider_reg_synced, block_count_reg_synced, dma_addr_reg_synced};
 cdc_bus #(32) argument_reg_cross(wb_rst_i, wb_clk_i, argument_reg_wb_clk, argument_reg_synced, sd_clk_o, argument_reg_sd_clk);
 cdc_bus #(`CMD_REG_SIZE) command_reg_cross(wb_rst_i, wb_clk_i, command_reg_wb_clk, command_reg_synced, sd_clk_o, command_reg_sd_clk);
@@ -437,11 +437,11 @@ always @(posedge wb_rst_i or posedge wb_clk_i) begin
             if (cmd_start_wb_clk) begin
                 cmd_start_wb_clk    <= 1'b0;
                 cmd_start_pending   <= 1'b0;
-            end else if (all_synced) begin
+            end else if (wb2sd_all_synced) begin
                 cmd_start_wb_clk    <= 1'b1;
             end
         end else if ({cmd_start_f, cmd_start} == 2'b01) begin
-            if (all_synced) begin
+            if (wb2sd_all_synced) begin
                 cmd_start_wb_clk    <= 1'b1;
             end else begin
                 cmd_start_wb_clk    <= 1'b0;
@@ -455,14 +455,15 @@ end
 cdc_pulse cmd_start_cross(wb_rst_i, wb_clk_i, cmd_start_wb_clk, sd_clk_o, cmd_start_sd_clk);
 
 // sd -> wb command response
-bistable_domain_cross #(32) response_0_reg_cross(wb_rst_i, sd_clk_o, response_0_reg_sd_clk, wb_clk_i, response_0_reg_wb_clk);
-bistable_domain_cross #(32) response_1_reg_cross(wb_rst_i, sd_clk_o, response_1_reg_sd_clk, wb_clk_i, response_1_reg_wb_clk);
-bistable_domain_cross #(32) response_2_reg_cross(wb_rst_i, sd_clk_o, response_2_reg_sd_clk, wb_clk_i, response_2_reg_wb_clk);
-bistable_domain_cross #(32) response_3_reg_cross(wb_rst_i, sd_clk_o, response_3_reg_sd_clk, wb_clk_i, response_3_reg_wb_clk);
-bistable_domain_cross #(`INT_CMD_SIZE) cmd_int_status_reg_cross(wb_rst_i, sd_clk_o, cmd_int_status_reg_sd_clk, wb_clk_i, cmd_int_status_reg_wb_clk);
+wire [5:0] sd2wb_synced;
+cdc_bus #(32) response_0_reg_cross(wb_rst_i, sd_clk_o, response_0_reg_sd_clk, sd2wb_synced[0], wb_clk_i, response_0_reg_wb_clk);
+cdc_bus #(32) response_1_reg_cross(wb_rst_i, sd_clk_o, response_1_reg_sd_clk, sd2wb_synced[1], wb_clk_i, response_1_reg_wb_clk);
+cdc_bus #(32) response_2_reg_cross(wb_rst_i, sd_clk_o, response_2_reg_sd_clk, sd2wb_synced[2], wb_clk_i, response_2_reg_wb_clk);
+cdc_bus #(32) response_3_reg_cross(wb_rst_i, sd_clk_o, response_3_reg_sd_clk, sd2wb_synced[3], wb_clk_i, response_3_reg_wb_clk);
+cdc_bus #(`INT_CMD_SIZE) cmd_int_status_reg_cross(wb_rst_i, sd_clk_o, cmd_int_status_reg_sd_clk, sd2wb_synced[4], wb_clk_i, cmd_int_status_reg_wb_clk);
 
 // sd -> wb data xfer response
-bistable_domain_cross #(`INT_DATA_SIZE) data_int_status_reg_cross(wb_rst_i, sd_clk_o, data_int_status_reg_sd_clk, wb_clk_i, data_int_status_reg_wb_clk);
+cdc_bus #(`INT_DATA_SIZE) data_int_status_reg_cross(wb_rst_i, sd_clk_o, data_int_status_reg_sd_clk, sd2wb_synced[5], wb_clk_i, data_int_status_reg_wb_clk);
 
 assign m_wb_cti_o = 3'b000;
 assign m_wb_bte_o = 2'b00;
