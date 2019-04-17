@@ -124,7 +124,8 @@ module async_fifo (
     cdc_bits #(
         .WIDTH(DEPTH_LOG2 + 1)
     ) wr_to_rd (
-        .src_clk(wr_clk)
+        .rst(rst)
+        ,.src_clk(wr_clk)
         ,.src({wr_ptr[DEPTH_LOG2], wr_ptr[DEPTH_LOG2:1] ^ wr_ptr[DEPTH_LOG2-1:0]})
         ,.dst_clk(rd_clk)
         ,.dst(wr_ptr_gray_sync)
@@ -150,7 +151,8 @@ module async_fifo (
     cdc_bits #(
         .WIDTH(DEPTH_LOG2 + 1)
     ) rd_to_wr (
-        .src_clk(rd_clk)
+        .rst(rst)
+        ,.src_clk(rd_clk)
         ,.src({rd_ptr[DEPTH_LOG2], rd_ptr[DEPTH_LOG2:1] ^ rd_ptr[DEPTH_LOG2-1:0]})
         ,.dst_clk(wr_clk)
         ,.dst(rd_ptr_gray_sync)

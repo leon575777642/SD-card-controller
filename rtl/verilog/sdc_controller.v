@@ -132,7 +132,7 @@ wire [`BLKSIZE_W+`BLKCNT_W-1:0] xfersize;
 wire [31:0] wbm_adr;
 
 wire go_idle;
-wire cmd_start_wb_clk;
+// wire cmd_start_wb_clk;
 wire cmd_start_sd_clk;
 wire cmd_start;
 wire [1:0] cmd_setting;
@@ -160,10 +160,10 @@ wire we_fifo;
 
 wire data_start_rx;
 wire data_start_tx;
-wire cmd_int_rst_wb_clk;
+// wire cmd_int_rst_wb_clk;
 wire cmd_int_rst_sd_clk;
 wire cmd_int_rst;
-wire data_int_rst_wb_clk;
+// wire data_int_rst_wb_clk;
 wire data_int_rst_sd_clk;
 wire data_int_rst;
 
@@ -408,19 +408,51 @@ cdc_pulse data_int_rst_cross(wb_rst_i, wb_clk_i, data_int_rst, sd_clk_o, data_in
 cdc_pulse cmd_int_rst_cross(wb_rst_i, wb_clk_i, cmd_int_rst, sd_clk_o, cmd_int_rst_sd_clk);
 
 // wb -> sd before commands
-bistable_domain_cross #(32) argument_reg_cross(wb_rst_i, wb_clk_i, argument_reg_wb_clk, sd_clk_o, argument_reg_sd_clk);
-bistable_domain_cross #(`CMD_REG_SIZE) command_reg_cross(wb_rst_i, wb_clk_i, command_reg_wb_clk, sd_clk_o, command_reg_sd_clk);
-bistable_domain_cross software_reset_reg_cross(wb_rst_i, wb_clk_i, software_reset_reg_wb_clk, sd_clk_o, software_reset_reg_sd_clk);
-bistable_domain_cross #(`CMD_TIMEOUT_W) cmd_timeout_reg_cross(wb_rst_i, wb_clk_i, cmd_timeout_reg_wb_clk, sd_clk_o, cmd_timeout_reg_sd_clk);
-bistable_domain_cross #(`DATA_TIMEOUT_W) data_timeout_reg_cross(wb_rst_i, wb_clk_i, data_timeout_reg_wb_clk, sd_clk_o, data_timeout_reg_sd_clk);
-bistable_domain_cross #(`BLKSIZE_W) block_size_reg_cross(wb_rst_i, wb_clk_i, block_size_reg_wb_clk, sd_clk_o, block_size_reg_sd_clk);
-bistable_domain_cross #(1) controll_setting_reg_cross(wb_rst_i, wb_clk_i, controll_setting_reg_wb_clk, sd_clk_o, controll_setting_reg_sd_clk);
-bistable_domain_cross #(8) clock_divider_reg_cross(wb_rst_i, wb_clk_i, clock_divider_reg_wb_clk, sd_clk_i_pad, clock_divider_reg_sd_clk);
-bistable_domain_cross #(`BLKCNT_W) block_count_reg_cross(wb_rst_i, wb_clk_i, block_count_reg_wb_clk, sd_clk_o, block_count_reg_sd_clk);
-bistable_domain_cross #(2) dma_addr_reg_cross(wb_rst_i, wb_clk_i, dma_addr_reg_wb_clk[1:0], sd_clk_o, dma_addr_reg_sd_clk);
+wire argument_reg_synced, command_reg_synced, software_reset_reg_synced, cmd_timeout_reg_synced, data_timeout_reg_synced,
+    block_size_reg_synced, controll_setting_reg_synced, clock_divider_reg_synced, block_count_reg_synced, dma_addr_reg_synced;
+wire all_synced = &{argument_reg_synced, command_reg_synced, software_reset_reg_synced, cmd_timeout_reg_synced, data_timeout_reg_synced,
+    block_size_reg_synced, controll_setting_reg_synced, clock_divider_reg_synced, block_count_reg_synced, dma_addr_reg_synced};
+cdc_bus #(32) argument_reg_cross(wb_rst_i, wb_clk_i, argument_reg_wb_clk, argument_reg_synced, sd_clk_o, argument_reg_sd_clk);
+cdc_bus #(`CMD_REG_SIZE) command_reg_cross(wb_rst_i, wb_clk_i, command_reg_wb_clk, command_reg_synced, sd_clk_o, command_reg_sd_clk);
+cdc_bus software_reset_reg_cross(wb_rst_i, wb_clk_i, software_reset_reg_wb_clk, software_reset_reg_synced, sd_clk_o, software_reset_reg_sd_clk);
+cdc_bus #(`CMD_TIMEOUT_W) cmd_timeout_reg_cross(wb_rst_i, wb_clk_i, cmd_timeout_reg_wb_clk, cmd_timeout_reg_synced, sd_clk_o, cmd_timeout_reg_sd_clk);
+cdc_bus #(`DATA_TIMEOUT_W) data_timeout_reg_cross(wb_rst_i, wb_clk_i, data_timeout_reg_wb_clk, data_timeout_reg_synced, sd_clk_o, data_timeout_reg_sd_clk);
+cdc_bus #(`BLKSIZE_W) block_size_reg_cross(wb_rst_i, wb_clk_i, block_size_reg_wb_clk, block_size_reg_synced, sd_clk_o, block_size_reg_sd_clk);
+cdc_bus #(1) controll_setting_reg_cross(wb_rst_i, wb_clk_i, controll_setting_reg_wb_clk, controll_setting_reg_synced, sd_clk_o, controll_setting_reg_sd_clk);
+cdc_bus #(8) clock_divider_reg_cross(wb_rst_i, wb_clk_i, clock_divider_reg_wb_clk, clock_divider_reg_synced, sd_clk_i_pad, clock_divider_reg_sd_clk);
+cdc_bus #(`BLKCNT_W) block_count_reg_cross(wb_rst_i, wb_clk_i, block_count_reg_wb_clk, block_count_reg_synced, sd_clk_o, block_count_reg_sd_clk);
+cdc_bus #(2) dma_addr_reg_cross(wb_rst_i, wb_clk_i, dma_addr_reg_wb_clk[1:0], dma_addr_reg_synced, sd_clk_o, dma_addr_reg_sd_clk);
 
-// wb -> sd fire signal
-cdc_pulse cmd_start_cross(wb_rst_i, wb_clk_i, cmd_start, sd_clk_o, cmd_start_sd_clk);
+// wb -> sd fire signal: wait until all wb -> sd data are synced
+reg cmd_start_f, cmd_start_pending, cmd_start_wb_clk;
+always @(posedge wb_rst_i or posedge wb_clk_i) begin
+    if (wb_rst_i) begin
+        cmd_start_f       <= 1'b0;
+        cmd_start_pending <= 1'b0;
+        cmd_start_wb_clk  <= 1'b0;
+    end else begin
+        cmd_start_f       <= cmd_start;     // cmd_start is registered at the output of sd_controller_wb
+
+        if (cmd_start_pending) begin
+            if (cmd_start_wb_clk) begin
+                cmd_start_wb_clk    <= 1'b0;
+                cmd_start_pending   <= 1'b0;
+            end else if (all_synced) begin
+                cmd_start_wb_clk    <= 1'b1;
+            end
+        end else if ({cmd_start_f, cmd_start} == 2'b01) begin
+            if (all_synced) begin
+                cmd_start_wb_clk    <= 1'b1;
+            end else begin
+                cmd_start_wb_clk    <= 1'b0;
+                cmd_start_pending   <= 1'b1;
+            end
+        end else begin
+            cmd_start_wb_clk        <= 1'b0;
+        end
+    end
+end
+cdc_pulse cmd_start_cross(wb_rst_i, wb_clk_i, cmd_start_wb_clk, sd_clk_o, cmd_start_sd_clk);
 
 // sd -> wb command response
 bistable_domain_cross #(32) response_0_reg_cross(wb_rst_i, sd_clk_o, response_0_reg_sd_clk, wb_clk_i, response_0_reg_wb_clk);

@@ -34,7 +34,8 @@ module cdc_pulse (
     cdc_bits #(
         .WIDTH(1)
     ) cdc_edge (
-        .src_clk(src_clk)
+        .rst(rst)
+        ,.src_clk(src_clk)
         ,.src(src_edge)
         ,.dst_clk(dst_clk)
         ,.dst(dst_edge)

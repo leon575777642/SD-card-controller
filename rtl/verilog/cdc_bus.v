@@ -17,8 +17,7 @@ module cdc_bus (
     output reg  [WIDTH - 1:0]   dst;
 
     reg [WIDTH - 1:0] prev_synced_src, src_f;
-    reg src_val, dst_ack;
-    wire src_ack, src_val;
+    wire src_val, src_ack, dst_val, dst_ack;
     wire [WIDTH - 1:0] dst_hsked;
 
     cdc_handshake #(
@@ -39,7 +38,7 @@ module cdc_bus (
     localparam STATE_SYNC = 2'd1;
     localparam STATE_WAIT = 2'd2;
 
-    reg [1:0] state, state_next;
+    reg [1:0] state;
 
     always @(posedge src_clk or posedge rst) begin
         if (rst) begin
@@ -47,38 +46,24 @@ module cdc_bus (
             prev_synced_src <= {WIDTH{1'b0}};
             src_f           <= {WIDTH{1'b0}};
         end else begin
-            state           <= state_next;
-
-            if (state == STATE_IDLE && src != prev_synced_src) begin
-                src_f               <= src;
-            end
-
-            if (state == STATE_WAIT && src_ack) begin
-                prev_synced_src     <= src_f;
-            end
+            case (state)
+                STATE_IDLE: begin
+                    if (src != prev_synced_src) begin
+                        state   <=  STATE_SYNC;
+                        src_f   <=  src;
+                    end
+                end
+                STATE_SYNC: begin
+                    state       <=  STATE_WAIT;
+                end
+                STATE_WAIT: begin
+                    if (src_ack) begin
+                        state   <=  STATE_IDLE;
+                        prev_synced_src <=  src_f;
+                    end
+                end
+            endcase
         end
-    end
-
-    always @* begin
-        state_next = state;
-        src_val = 1'b0;
-
-        case (state)
-            STATE_IDLE: begin
-                if (src != prev_synced_src) begin
-                    state_next = STATE_SYNC;
-                end
-            end
-            STATE_SYNC: begin
-                src_val = 1'b1;
-                state_next = STATE_WAIT;
-            end
-            STATE_WAIT: begin
-                if (src_ack) begin
-                    state_next = STATE_IDLE;
-                end
-            end
-        endcase
     end
 
     always @(posedge dst_clk or posedge rst) begin
@@ -92,6 +77,7 @@ module cdc_bus (
     end
 
     assign synced = (src == prev_synced_src && state == STATE_IDLE);
+    assign src_val = (state == STATE_SYNC);
     assign dst_ack = dst_val;
 
 endmodule

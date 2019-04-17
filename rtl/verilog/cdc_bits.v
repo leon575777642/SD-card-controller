@@ -2,11 +2,14 @@
 //  - if WIDTH is greater than 1, the bits are independently synced. do not use
 //      this directly for bus signals.
 module cdc_bits (
+    rst,
     src_clk, src,
     dst_clk, dst
     );
 
     parameter WIDTH = 1;
+
+    input  wire                 rst;
 
     input  wire                 src_clk;
     input  wire [WIDTH - 1:0]   src;
@@ -31,17 +34,22 @@ module cdc_bits (
 
     genvar i;
     generate for (i = 0; i < WIDTH; i = i + 1) begin: cdc_bit
-        reg bit_f[3:0];   // 4-stage synchronizer
+        reg [3:0] bit_f;   // 4-stage synchronizer
 
-        always @(posedge src_clk) begin
-            bit_f[0]    <=  src[i];
+        always @(posedge src_clk or posedge rst) begin
+            if (rst) begin
+                bit_f[0]    <=  1'b0;
+            end else begin
+                bit_f[0]    <=  src[i];
+            end
         end
 
-        always @(posedge dst_clk) begin
-            bit_f[1]    <=  bit_f[0];
-            bit_f[2]    <=  bit_f[1];
-            bit_f[3]    <=  bit_f[2];
-            dst_f[i]    <=  bit_f[3];
+        always @(posedge dst_clk or posedge rst) begin
+            if (rst) begin
+                {dst_f[i], bit_f[3:1]}  <=  4'h0;
+            end else begin
+                {dst_f[i], bit_f[3:1]}  <=  bit_f;
+            end
         end
     end endgenerate
 `endif

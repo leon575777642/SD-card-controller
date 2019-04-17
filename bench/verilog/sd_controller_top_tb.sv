@@ -334,6 +334,8 @@ task send_cmd;
     input integer command;
     input integer argument;
     output integer status;
+
+    integer tmp;
     begin
         //Setup cmd xfer
         wbm_write(reg_addr(`command), command, 4'hF, 1, 0, $random%5);
@@ -346,6 +348,11 @@ task send_cmd;
 
         //clear cmd isr
         wbm_write(reg_addr(`cmd_isr), 0, 4'hF, 1, 0, $random%5);
+
+        //wait until cmd int status cleared
+        wbm_read(reg_addr(`cmd_isr), tmp, 4'hF, 1, 0, $random%5);
+        while (tmp[`INT_CMD_CC] != 0 || tmp[`INT_CMD_EI] != 0)
+            wbm_read(reg_addr(`cmd_isr), tmp, 4'hF, 1, 0, $random%5);
     end
 endtask
 
@@ -410,7 +417,7 @@ task init_card;
     integer resp_data;
     begin
         
-        setup_core(16'h2ff, 16'hfff);
+        setup_core(16'h3ff, 16'hfff);
         
         //CMD 0 Reset card
         send_cmd(0, 0, status);
