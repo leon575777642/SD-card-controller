@@ -79,6 +79,7 @@ module sd_fifo_filler(
 `define MEM_OFFSET 4
 
 reg [`BLKSIZE_W+`BLKCNT_W-1:0] xfersize_f;
+reg wb2sd_wr_en;
 
 always @(posedge wb_clk or posedge rst) begin
     if (rst) begin
@@ -97,6 +98,10 @@ always @(posedge wb_clk or posedge rst) begin
             xfersize_f  <=  xfersize[`BLKSIZE_W+`BLKCNT_W-1:2] - ((xfersize[1:0] == 2'b0) ? 1 : 0);
         end else if (wbm_cyc_o & wbm_ack_i) begin
             wbm_adr_o   <=  wbm_adr_o + `MEM_OFFSET;
+            if (wbm_we_o) begin
+                xfersize_f  <=  xfersize_f - 1;
+            end
+        end else if (~wbm_we_o & wb2sd_wr_en) begin
             xfersize_f  <=  xfersize_f - 1;
         end
     end
@@ -168,7 +173,7 @@ always @* begin
     endcase
 end
 
-reg wb2sd_wr_en, wb2sd_wb_cyc_o;
+reg wb2sd_wb_cyc_o;
 reg [31:0] wb2sd_din_f;
 wire wb2sd_full;
 

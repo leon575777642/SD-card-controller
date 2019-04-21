@@ -313,7 +313,12 @@ begin
     #SD_TCLK;
     tx_fifo_empty_i = 0;
     
-    check_failed_read((1 << `INT_DATA_EI) | (1 << `INT_DATA_CFE));
+    // check_failed_read((1 << `INT_DATA_EI) | (1 << `INT_DATA_CFE));
+	wait(sd_data_master_dut.tx_cycle == 0);
+	#(SD_TCLK/2);
+	xfr_complete_i = 1;
+    
+    reset_int_status;
     tx_fifo_empty_i = 1;
     
     //write test

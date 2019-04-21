@@ -164,29 +164,28 @@ begin
                 d_read_o <= 0;
                 d_write_o <= 0;
                 watchdog <= watchdog + `DATA_TIMEOUT_W'd1;
-                if (tx_cycle) begin
-                    if (tx_fifo_empty_i) begin
-                        if (!trans_done) begin
-                            int_status_o[`INT_DATA_CFE] <= 1;
-                            int_status_o[`INT_DATA_EI] <= 1;
-                        end
-                        trans_done <= 1;
-                        //stop sd_data_serial_host
-                        d_write_o <= 1;
-                        d_read_o <= 1;
+                // if (tx_cycle) begin
+                //     if (tx_fifo_empty_i) begin
+                //         if (!trans_done) begin
+                //             int_status_o[`INT_DATA_CFE] <= 1;
+                //             int_status_o[`INT_DATA_EI] <= 1;
+                //         end
+                //         trans_done <= 1;
+                //         //stop sd_data_serial_host
+                //         d_write_o <= 1;
+                //         d_read_o <= 1;
+                //     end
+                // end
+                // else begin
+                if (!tx_cycle && rx_fifo_full_i) begin
+                    if (!trans_done) begin
+                        int_status_o[`INT_DATA_CFE] <= 1;
+                        int_status_o[`INT_DATA_EI] <= 1;
                     end
-                end
-                else begin
-                    if (rx_fifo_full_i) begin
-                        if (!trans_done) begin
-                            int_status_o[`INT_DATA_CFE] <= 1;
-                            int_status_o[`INT_DATA_EI] <= 1;
-                        end
-                        trans_done <= 1;
-                        //stop sd_data_serial_host
-                        d_write_o <= 1;
-                        d_read_o <= 1;
-                    end
+                    trans_done <= 1;
+                    //stop sd_data_serial_host
+                    d_write_o <= 1;
+                    d_read_o <= 1;
                 end
                 if (timeout_reg && watchdog >= timeout_reg) begin
                     int_status_o[`INT_DATA_CTE] <= 1;

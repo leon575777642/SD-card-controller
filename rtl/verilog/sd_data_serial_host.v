@@ -84,12 +84,13 @@ reg [`BLKSIZE_W-1+4:0] transf_cnt;
 parameter SIZE = 6;
 reg [SIZE-1:0] state;
 reg [SIZE-1:0] next_state;
-parameter IDLE       = 6'b000001;
-parameter WRITE_DAT  = 6'b000010;
-parameter WRITE_CRC  = 6'b000100;
-parameter WRITE_BUSY = 6'b001000;
-parameter READ_WAIT  = 6'b010000;
-parameter READ_DAT   = 6'b100000;
+localparam IDLE       = 6'b000001;
+localparam WRITE_DAT  = 6'b000010;
+localparam WRITE_PREP = 6'b000011;
+localparam WRITE_CRC  = 6'b000100;
+localparam WRITE_BUSY = 6'b001000;
+localparam READ_WAIT  = 6'b010000;
+localparam READ_DAT   = 6'b100000;
 reg [2:0] crc_status;
 reg busy_int;
 reg [`BLKCNT_W-1:0] blkcnt_reg;
@@ -122,11 +123,14 @@ begin: FSM_COMBO
     case(state)
         IDLE: begin
             if (start == 2'b01)
-                next_state <= WRITE_DAT;
+                next_state <= WRITE_PREP;
             else if  (start == 2'b10)
                 next_state <= READ_WAIT;
             else
                 next_state <= IDLE;
+        end
+        WRITE_PREP: begin
+            next_state <= WRITE_DAT;    // assuming 1-cycle FIFO read delay, non-first-word-fall-through FIFO
         end
         WRITE_DAT: begin
             if (transf_cnt >= data_cycles+21 && start_bit)
@@ -218,6 +222,20 @@ begin: FSM_OUT
                 data_cycles <= (bus_4bit ? (blksize << 1) + `BLKSIZE_W'd2 : (blksize << 3) + `BLKSIZE_W'd8);
                 bus_4bit_reg <= bus_4bit;
             end
+            WRITE_PREP: begin
+                DAT_oe_o <= 0;
+                DAT_dat_o <= 4'b1111;
+                crc_en <= 0;
+                crc_rst <= 1;
+                transf_cnt <= 0;
+                crc_c <= 16;
+                crc_status <= 0;
+                crc_s <= 0;
+                we <= 0;
+                data_index <= 0;
+                next_block <= 0;
+                rd <= 1;
+            end
             WRITE_DAT: begin
                 crc_ok <= 0;
                 transf_cnt <= transf_cnt + 16'h1;
@@ -267,14 +285,14 @@ begin: FSM_OUT
                             data_in[29-(data_index[2:0]<<2)], 
                             data_in[28-(data_index[2:0]<<2)]
                             };
-                        if (data_index[2:0] == 3'h5/*not 7 - read delay !!!*/ && transf_cnt <= data_cycles-1) begin
+                        if (data_index[2:0] == 3'h6/*not 7 - read delay !!!*/ && transf_cnt <= data_cycles-8) begin
                             rd <= 1;
                         end
                     end
                     else begin
                         last_din <= {3'h7, data_in[31-data_index]};
                         crc_in <= {3'h7, data_in[31-data_index]};
-                        if (data_index == 29/*not 31 - read delay !!!*/) begin
+                        if (data_index == 30/*not 31 - read delay !!!*/) begin
                             rd <= 1;
                         end
                     end
