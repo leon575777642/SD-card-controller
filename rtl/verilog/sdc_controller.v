@@ -132,6 +132,7 @@ wire [`BLKSIZE_W+`BLKCNT_W-1:0] xfersize;
 wire [31:0] wbm_adr;
 
 wire go_idle;
+reg cmd_start_wb_clk;
 // wire cmd_start_wb_clk;
 wire cmd_start_sd_clk;
 wire cmd_start;
@@ -147,10 +148,10 @@ wire d_write;
 wire d_read;
 wire [31:0] data_in_rx_fifo;
 wire [31:0] data_out_tx_fifo;
-wire start_tx_fifo;
-wire start_rx_fifo;
+// wire start_tx_fifo;
+// wire start_rx_fifo;
 wire tx_fifo_empty;
-wire tx_fifo_full;
+// wire tx_fifo_full;
 wire rx_fifo_full;
 wire sd_data_busy;
 wire data_busy;
@@ -263,10 +264,7 @@ sd_data_master sd_data_master0(
     .timeout_i		  (data_timeout_reg_sd_clk),
     .d_write_o        (d_write),
     .d_read_o         (d_read),
-    .start_tx_fifo_o  (start_tx_fifo),
-    .start_rx_fifo_o  (start_rx_fifo),
     .tx_fifo_empty_i  (tx_fifo_empty),
-    .tx_fifo_full_i   (tx_fifo_full),
     .rx_fifo_full_i   (rx_fifo_full),
     .xfr_complete_i   (!data_busy),
     .crc_ok_i         (data_crc_ok),
@@ -304,25 +302,24 @@ sd_fifo_filler sd_fifo_filler0(
     .wbm_cyc_o (m_wb_cyc_o),
     .wbm_stb_o (m_wb_stb_o),
     .wbm_ack_i (m_wb_ack_i),
-    .en_rx_i   (start_rx_fifo),
-    .en_tx_i   (start_tx_fifo),
+    .en_rx_i   (cmd_start_wb_clk & (command_reg_wb_clk[`CMD_WITH_DATA] == 2'b01)),
+    .en_tx_i   (cmd_start_wb_clk & (command_reg_wb_clk[`CMD_WITH_DATA] == 2'b10)),
     .adr_i     (dma_addr_reg_wb_clk),
+    .xfersize  (xfersize),
     .sd_clk    (sd_clk_o),
     .dat_i     (data_in_rx_fifo),
     .dat_o     (data_out_tx_fifo),
     .wr_i      (we_fifo),
     .rd_i      (rd_fifo),
     .sd_empty_o   (tx_fifo_empty),
-    .sd_full_o   (rx_fifo_full),
-    .wb_empty_o   (),
-    .wb_full_o    (tx_fifo_full)
+    .sd_full_o   (rx_fifo_full)
     );
 
 assign xfersize = (block_size_reg_wb_clk + 1'b1) * (block_count_reg_wb_clk + 1'b1);
 sd_wb_sel_ctrl sd_wb_sel_ctrl0(
         .wb_clk         (wb_clk_i),
         .rst            (wb_rst_i | software_reset_reg_sd_clk[0]),
-        .ena            (start_rx_fifo),
+        .ena            (cmd_start_wb_clk & (command_reg_wb_clk[`CMD_WITH_DATA] == 2'b01)),
         .base_adr_i     (dma_addr_reg_wb_clk),
         .wbm_adr_i      (wbm_adr),
         .xfersize       (xfersize),
@@ -424,7 +421,7 @@ cdc_bus #(`BLKCNT_W) block_count_reg_cross(wb_rst_i, wb_clk_i, block_count_reg_w
 cdc_bus #(2) dma_addr_reg_cross(wb_rst_i, wb_clk_i, dma_addr_reg_wb_clk[1:0], dma_addr_reg_synced, sd_clk_o, dma_addr_reg_sd_clk);
 
 // wb -> sd fire signal: wait until all wb -> sd data are synced
-reg cmd_start_f, cmd_start_pending, cmd_start_wb_clk;
+reg cmd_start_f, cmd_start_pending;
 always @(posedge wb_rst_i or posedge wb_clk_i) begin
     if (wb_rst_i) begin
         cmd_start_f       <= 1'b0;

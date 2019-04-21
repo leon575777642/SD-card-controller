@@ -43,8 +43,8 @@
 
 module sd_fifo_filler_tb();
 
-parameter WB_TCLK = 20; // 50 MHz -> timescale 1ns
-parameter SD_TCLK = WB_TCLK*2; // 25 MHz -> timescale 1ns
+parameter WB_TCLK = 15; // 66.7 MHz -> timescale 1ns
+parameter SD_TCLK = 40; // 25 MHz -> timescale 1ns
 
 reg wb_clk;
 reg rst;
@@ -55,18 +55,17 @@ wire [31:0] wbm_dat_i;
 wire wbm_cyc_o;
 wire wbm_stb_o;
 wire wbm_ack_i;
-reg en_rx_i;
-reg en_tx_i;
+reg en_rx_i, en_rx_i_f;
+reg en_tx_i, en_tx_i_f;
 reg [31:0] adr_i;
+integer xfersize = 128;
 reg sd_clk;
 reg [31:0] dat_i;
 wire [31:0] dat_o;
 reg wr_i;
-reg rd_i;
+reg rd_i, rd_i_f;
 wire sd_full_o;
 wire sd_empty_o;
-wire wb_full_o;
-wire wb_empty_o;
 
 //wb slave helpers
 integer wb_wait;
@@ -96,18 +95,17 @@ sd_fifo_filler sd_fifo_filler_dut(
                       .wbm_cyc_o (wbm_cyc_o),
                       .wbm_stb_o (wbm_stb_o),
                       .wbm_ack_i (wbm_ack_i),
-                      .en_rx_i   (en_rx_i),
-                      .en_tx_i   (en_tx_i),
+                      .en_rx_i   ({en_rx_i_f, en_rx_i} == 2'b01),
+                      .en_tx_i   ({en_tx_i_f, en_tx_i} == 2'b01),
                       .adr_i     (adr_i),
+                      .xfersize  (xfersize),
                       .sd_clk    (sd_clk),
                       .dat_i     (dat_i),
                       .dat_o     (dat_o),
                       .wr_i      (wr_i),
                       .rd_i      (rd_i),
                       .sd_empty_o   (sd_empty_o),
-                      .sd_full_o   (sd_full_o),
-                      .wb_empty_o   (wb_empty_o),
-                      .wb_full_o    (wb_full_o)
+                      .sd_full_o   (sd_full_o)
                   );
 
 // Generating sd_clk clock
@@ -123,7 +121,12 @@ begin
     forever #(WB_TCLK/2) wb_clk = ~wb_clk;
 end
 
-assign wbm_ack_i = wbm_cyc_o && wbm_stb_o & wb_wait == wb_wait_counter;
+always @(posedge wb_clk) begin
+    en_rx_i_f <= en_rx_i;
+    en_tx_i_f <= en_tx_i;
+end
+
+assign wbm_ack_i = wbm_cyc_o && wbm_stb_o & wb_wait <= wb_wait_counter;
 assign wbm_dat_i = wbm_ack_i ? test_mem[wb_idx] : 0;
 //wb slave
 always @(posedge wb_clk) begin
@@ -151,13 +154,15 @@ always @(posedge wb_clk) begin
 end
     
 //fifo driver
-always @(posedge sd_clk)
+always @(posedge sd_clk) begin
     if (en_rx_i) begin
         if (fifo_drv_wait == fifo_drv_wait_counter) begin
-            wr_i <= 1;
-            dat_i <= test_mem[fifo_drv_idx];
             fifo_drv_wait_counter <= 0;
-            fifo_drv_idx++;
+            if (!sd_full_o) begin
+                wr_i <= 1;
+                dat_i <= test_mem[fifo_drv_idx];
+                fifo_drv_idx++;
+            end
         end
         else begin
             wr_i <= 0;
@@ -168,9 +173,7 @@ always @(posedge sd_clk)
     else if (fifo_drv_ena) begin
         if (fifo_drv_wait_counter == 0) begin
             rd_i <= 1;
-            assert(dat_o == test_mem[fifo_drv_idx]);
             fifo_drv_wait_counter++;
-            fifo_drv_idx++;
         end
         else begin
             rd_i <= 0;
@@ -179,6 +182,11 @@ always @(posedge sd_clk)
             else
                 fifo_drv_wait_counter++;
         end
+        
+        if (rd_i_f) begin
+            assert(dat_o == test_mem[fifo_drv_idx]);
+            fifo_drv_idx++;
+        end
     end
     else begin
         wr_i <= 0;
@@ -186,6 +194,9 @@ always @(posedge sd_clk)
         fifo_drv_idx = 0;
         fifo_drv_wait_counter <= 0;
     end
+
+    rd_i_f <= rd_i;
+end
 
 initial
 begin
@@ -200,19 +211,19 @@ begin
     wr_i = 0;
     rd_i = 0;
     
-    $display("sd_fifo_filler_tb finish ...");
+    $display("sd_fifo_filler_tb start ...");
     
     #(3*WB_TCLK);
     rst = 0;
     assert(wbm_we_o == 0);
     assert(wbm_cyc_o == 0);
     assert(wbm_stb_o == 0);
-    assert(wb_full_o == 0);
+    assert(sd_fifo_filler_dut.wb2sd_full == 0);
     #(3*WB_TCLK);
     assert(wbm_we_o == 0);
     assert(wbm_cyc_o == 0);
     assert(wbm_stb_o == 0);
-    assert(wb_full_o == 0);
+    assert(sd_fifo_filler_dut.wb2sd_full == 0);
     assert(sd_empty_o == 1);
     
     //check normal operation
@@ -223,22 +234,28 @@ begin
     #(100*WB_TCLK);
     wait(wbm_cyc_o == 0);
     en_rx_i = 0;
+    rst = 1;
     #SD_TCLK;
+    rst = 0;
     assert(wbm_we_o == 0);
     assert(wbm_cyc_o == 0);
     assert(wbm_stb_o == 0);
-    assert(wb_full_o == 0);
+    assert(sd_fifo_filler_dut.wb2sd_full == 0);
 
     //check for full condition
     #(WB_TCLK/2);
     en_rx_i = 1;
     fifo_drv_wait = 7;
-    wb_wait = 17*(fifo_drv_wait+1)*(SD_TCLK/WB_TCLK);
-    #(wb_wait*WB_TCLK);
-    #SD_TCLK;
+    wb_wait = 100*(fifo_drv_wait+1)*(SD_TCLK/WB_TCLK);
+    #(17*(fifo_drv_wait+1)*SD_TCLK);
+    #(SD_TCLK);
     assert(sd_full_o == 1);
-    assert(wb_empty_o == 0);
+    assert(sd_fifo_filler_dut.sd2wb_empty == 0);
+    wb_wait = 0;
     en_rx_i = 0;
+    rst = 1;
+    #SD_TCLK;
+    rst = 0;
     fork
         begin
             #WB_TCLK;
@@ -251,22 +268,24 @@ begin
             assert(sd_full_o == 0);
         end
     join
-    wait(wb_empty_o == 1);
+    wait(sd_fifo_filler_dut.sd2wb_empty == 1);
     #SD_TCLK;
     
-    //fill almost fuul fifo then burst write
+    //fill almost full fifo then burst write
     en_rx_i = 1;
     fifo_drv_wait = 7;
     wb_wait = 14*(fifo_drv_wait+1)*(SD_TCLK/WB_TCLK);
     wait(wbm_ack_i);
     #SD_TCLK;
     assert(sd_full_o == 0);
-    assert(wb_empty_o == 0);
+    assert(sd_fifo_filler_dut.sd2wb_empty == 0);
     wb_wait = 0;
-    wait(wb_empty_o == 1);
+    wait(sd_full_o == 1);
     wait(wbm_cyc_o == 0);
     en_rx_i = 0;
+    rst = 1;
     #SD_TCLK;
+    rst = 0;
     assert(wbm_we_o == 0);
     assert(wbm_cyc_o == 0);
     assert(wbm_stb_o == 0);
@@ -276,7 +295,7 @@ begin
     //check fifo fill
     en_tx_i = 1;
     wb_wait = 2;
-    wait(wb_full_o == 1);
+    wait(sd_fifo_filler_dut.sd_empty_o == 0);
     #(WB_TCLK/2);
     assert(sd_empty_o == 0);
     assert(wbm_we_o == 0);
@@ -285,8 +304,8 @@ begin
     #WB_TCLK;
     assert(sd_empty_o == 0);
     assert(wbm_we_o == 0);
-    assert(wbm_cyc_o == 0);
-    assert(wbm_stb_o == 0);
+    assert(wbm_cyc_o == 1);
+    assert(wbm_stb_o == 1);
     
     //check normal operation
     fifo_drv_wait = 7;
@@ -295,9 +314,12 @@ begin
     wait(wbm_cyc_o == 0 && rd_i == 0);
     #(WB_TCLK/2);
     en_tx_i = 0;
+    rst = 1;
+    #SD_TCLK;
+    rst = 0;
     fifo_drv_ena = 0;
     wait(sd_empty_o == 1);
-    assert(wb_full_o == 0);
+    assert(sd_fifo_filler_dut.wb2sd_full == 0);
 
     #(10*WB_TCLK) $display("sd_fifo_filler_tb finish ...");
     $finish;

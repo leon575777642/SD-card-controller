@@ -71,12 +71,12 @@ task set_test;
     input [31:0] base_addr;
     input [`BLKSIZE_W+`BLKCNT_W-1:0] xfer_size;
     begin
-        ena = 0;
+        ena = 1;
         base_adr_i = base_addr;
         xfersize = xfer_size;
         #TCLK;
         
-        ena = 1;
+        ena = 0;
         base_adr_i = 0;
         xfersize = 0;
         #TCLK;

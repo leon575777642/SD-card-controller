@@ -54,10 +54,7 @@ reg start_rx_i;
 reg [`DATA_TIMEOUT_W-1:0] timeout_i;
 wire d_write_o;
 wire d_read_o;
-wire start_tx_fifo_o;
-wire start_rx_fifo_o;
 reg tx_fifo_empty_i;
-reg tx_fifo_full_i;
 reg rx_fifo_full_i;
 reg xfr_complete_i;
 reg crc_ok_i;
@@ -85,19 +82,16 @@ task start_read;
         start_tx_i = 1; //start filling tx fifo
         #SD_TCLK;
         start_tx_i = 0;
-        wait(start_tx_fifo_o == 1);
+        wait(sd_data_master_dut.tx_cycle == 1);
         #(SD_TCLK/2);
         assert(d_write_o == 0);
         assert(d_read_o == 0);
-        assert(start_rx_fifo_o == 0);
         #(4*SD_TCLK);
-        tx_fifo_full_i = 1; //tx fifo is full
+        tx_fifo_empty_i = 0;
         wait(d_write_o == 1);
         #(SD_TCLK/2);
         xfr_complete_i = 0; //serial_data_host starts its state machine
         assert(d_read_o == 0);
-        assert(start_tx_fifo_o == 1);
-        assert(start_rx_fifo_o == 0);
         #(2*SD_TCLK);
         //check if d_write_o went low
         assert(d_write_o == 0);
@@ -111,9 +105,8 @@ task check_end_read;
 	
         assert(d_write_o == 0);
         assert(d_read_o == 0);    
-        wait(start_tx_fifo_o == 0);
+        wait(sd_data_master_dut.tx_cycle == 0);
         #(SD_TCLK/2);
-        assert(start_rx_fifo_o == 0);
         assert(int_status_o == expected_status);
         
         reset_int_status;
@@ -125,7 +118,6 @@ task end_read;
     input crc_ok;
     begin
     
-        tx_fifo_full_i = 0;
         xfr_complete_i = 1;
         crc_ok_i = crc_ok;
         #SD_TCLK;
@@ -135,7 +127,8 @@ task end_read;
             check_end_read(1 << `INT_DATA_CC);
         else
             check_end_read((1 << `INT_DATA_EI) | (1 << `INT_DATA_CCRCE));
-        
+        tx_fifo_empty_i = 1;
+
     end
 endtask
 
@@ -158,11 +151,10 @@ task start_write;
 		start_rx_i = 1; //start filling rx fifo and start sd_data_serial_host
         #SD_TCLK;
         start_rx_i = 0;
-        wait(start_rx_fifo_o == 1 && d_read_o == 1);
+        wait(d_read_o == 1);
         #(SD_TCLK/2);
         xfr_complete_i = 0; //serial_data_host starts its state machine
         assert(d_write_o == 0);
-        assert(start_tx_fifo_o == 0);
         #(2*SD_TCLK);
         //check if d_read_o went low
         assert(d_read_o == 0);
@@ -176,9 +168,8 @@ task check_end_write;
 	
         assert(d_write_o == 0);
         assert(d_read_o == 0);
-        wait(start_rx_fifo_o == 0);
+        wait(sd_data_master_dut.trans_done == 0);
         #(SD_TCLK/2);
-        assert(start_rx_fifo_o == 0);
         assert(int_status_o == expected_status);
 
         reset_int_status;
@@ -222,10 +213,9 @@ task check_failed_read;
 	
 		assert(d_write_o == 1);
 		assert(d_read_o == 1);
-		wait(start_tx_fifo_o == 0);
+		wait(sd_data_master_dut.tx_cycle == 0);
 		#(SD_TCLK/2);
 		xfr_complete_i = 1;
-		assert(start_rx_fifo_o == 0);
 		assert(int_status_o == expected_status);
         
         reset_int_status;
@@ -239,10 +229,9 @@ task check_failed_write;
 	
 		assert(d_write_o == 1);
 		assert(d_read_o == 1);
-		wait(start_rx_fifo_o == 0);
+		wait(sd_data_master_dut.trans_done == 0);
 		#(SD_TCLK/2);
 		xfr_complete_i = 1;
-		assert(start_rx_fifo_o == 0);
 		assert(int_status_o == expected_status);
 		
 		reset_int_status;
@@ -258,10 +247,7 @@ sd_data_master sd_data_master_dut(
            .timeout_i(timeout_i),
            .d_write_o(d_write_o),
            .d_read_o(d_read_o),
-           .start_tx_fifo_o(start_tx_fifo_o),
-           .start_rx_fifo_o(start_rx_fifo_o),
            .tx_fifo_empty_i(tx_fifo_empty_i),
-           .tx_fifo_full_i(tx_fifo_full_i),
            .rx_fifo_full_i(rx_fifo_full_i),
            .xfr_complete_i(xfr_complete_i),
            .crc_ok_i(crc_ok_i),
@@ -283,8 +269,7 @@ begin
     start_tx_i = 0;
     start_rx_i = 0;
     timeout_i = 0;
-    tx_fifo_empty_i = 0;
-    tx_fifo_full_i = 0;
+    tx_fifo_empty_i = 1;
     rx_fifo_full_i = 0;
     xfr_complete_i = 1; //this signal is 0 only when serial_data_host is busy
     crc_ok_i = 0;
@@ -296,14 +281,10 @@ begin
     rst = 0;
     assert(d_write_o == 0);
     assert(d_read_o == 0);
-    assert(start_tx_fifo_o == 0);
-    assert(start_rx_fifo_o == 0);
     assert(int_status_o == 0);
     #(3*SD_TCLK);
     assert(d_write_o == 0);
     assert(d_read_o == 0);
-    assert(start_tx_fifo_o == 0);
-    assert(start_rx_fifo_o == 0);
     assert(int_status_o == 0);
     
     //set timeout
@@ -322,25 +303,25 @@ begin
     start_tx_i = 1; //start filling tx fifo
     #SD_TCLK;
     start_tx_i = 0;
-    wait(start_tx_fifo_o == 1);
+    wait(sd_data_master_dut.tx_cycle == 1);
     #(4.5*SD_TCLK);
-    tx_fifo_full_i = 1; //tx fifo is full
+    tx_fifo_empty_i = 0; //tx fifo is not empty
     wait(d_write_o == 1);
     xfr_complete_i = 0;
     #(10.5*SD_TCLK);
-    tx_fifo_full_i = 0;
     tx_fifo_empty_i = 1;
     #SD_TCLK;
     tx_fifo_empty_i = 0;
     
     check_failed_read((1 << `INT_DATA_EI) | (1 << `INT_DATA_CFE));
+    tx_fifo_empty_i = 1;
     
     //write test
     //////////////////////////////////////////////////////////////////////
     start_rx_i = 1; //start filling rx fifo and start sd_data_serial_host
     #SD_TCLK;
     start_rx_i = 0;
-    wait(start_rx_fifo_o == 1 && d_read_o == 1);
+    wait(d_read_o == 1);
     xfr_complete_i = 0;
     #(10.5*SD_TCLK);
     rx_fifo_full_i = 1;
@@ -363,7 +344,7 @@ begin
 
     wait(d_write_o == 1 && d_read_o == 1);
     check_failed_read((1 << `INT_DATA_EI) | (1 << `INT_DATA_CTE));
-    tx_fifo_full_i = 0;
+    tx_fifo_empty_i = 1;
     
     //write test
     start_write;
