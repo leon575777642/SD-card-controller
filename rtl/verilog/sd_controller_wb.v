@@ -79,7 +79,10 @@ module sd_controller_wb(
            block_count_reg,
            dma_addr_reg,
            data_int_status_reg,
-           data_int_enable_reg
+           data_int_enable_reg,
+
+           wb2sd_fifo_wr_en,
+           wb2sd_fifo_din
        );
 
 // WISHBONE common
@@ -120,12 +123,26 @@ output reg cmd_int_rst;
 output [`BLKCNT_W-1:0]block_count_reg;
 output [31:0] dma_addr_reg;
 
+output wb2sd_fifo_wr_en;
+output [39:0] wb2sd_fifo_din;
+
 wire we;
 
 parameter voltage_controll_reg  = `SUPPLY_VOLTAGE_mV;
 parameter capabilies_reg = 16'b0000_0000_0000_0000;
 
 assign we = (wb_we_i && ((wb_stb_i && wb_cyc_i) || wb_ack_o)) ? 1'b1 : 1'b0;
+assign wb2sd_fifo_wr_en = we && (wb_adr_i == `argument ||
+                          wb_adr_i == `reset ||
+                          wb_adr_i == `command ||
+                          wb_adr_i == `cmd_timeout ||
+                          wb_adr_i == `data_timeout ||
+                          wb_adr_i == `blksize ||
+                          wb_adr_i == `controller ||
+                          wb_adr_i == `clock_d ||
+                          wb_adr_i == `blkcnt ||
+                          wb_adr_i == `dst_src_addr);
+assign wb2sd_fifo_din = {wb_adr_i, wb_dat_i};
 
 byte_en_reg #(32) argument_r(wb_clk_i, wb_rst_i, we && wb_adr_i == `argument, wb_sel_i, wb_dat_i, argument_reg);
 byte_en_reg #(`CMD_REG_SIZE) command_r(wb_clk_i, wb_rst_i, we && wb_adr_i == `command, wb_sel_i[(`CMD_REG_SIZE-1)/8:0], wb_dat_i[`CMD_REG_SIZE-1:0], command_reg);
