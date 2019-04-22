@@ -168,7 +168,7 @@ always @* begin
             sd2wb_rd_en = !sd2wb_empty;
         end
         SD2WB_STATE_WRITE_PENDING: begin
-            sd2wb_wb_cyc_o = 1'b1;
+            sd2wb_wb_cyc_o = !en_rx_i && !en_tx_i;
         end
     endcase
 end
@@ -237,7 +237,7 @@ always @* begin
 
     case (wb2sd_state)
         WB2SD_STATE_READ_PENDING: begin
-            wb2sd_wb_cyc_o = 1'b1;
+            wb2sd_wb_cyc_o = !en_rx_i && !en_tx_i;
         end
         WB2SD_STATE_WRITE_PENDING: begin
             wb2sd_wr_en = !wb2sd_full;
