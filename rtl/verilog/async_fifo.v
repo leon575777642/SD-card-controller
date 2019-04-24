@@ -133,7 +133,7 @@ module async_fifo (
 
     genvar wr_gv;
     generate for (wr_gv = 0; wr_gv <= DEPTH_LOG2; wr_gv = wr_gv + 1) begin
-        always @(posedge rd_clk or rst) begin
+        always @(posedge rd_clk or posedge rst) begin
             if (rst) begin
                 wr_ptr_sync_f[wr_gv]    <=  1'b0;
             end else begin

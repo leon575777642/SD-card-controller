@@ -83,9 +83,11 @@ module sd_controller_top_tb
 
 );
 
-parameter TCLK = 20; // 50 MHz -> timescale 1ns
+parameter TCLK = 15; // 66.7 MHz -> timescale 1ns
+parameter TCLK_SD = 20; // 50 MHz
 
 reg wb_clk;
+reg sd_clk;
 reg wb_rst;
 wire [31:0] wbs_sds_dat_i;
 wire [31:0] wbs_sds_dat_o;
@@ -155,7 +157,7 @@ sdc_controller sd_controller_top_dut(
     .sd_dat_out_o(datIn),
     .sd_dat_oe_o( sd_dat_oe),
     .sd_clk_o_pad(sd_clk_pad_o),
-    .sd_clk_i_pad(wb_clk),
+    .sd_clk_i_pad(sd_clk),
     .int_cmd (int_cmd),
     .int_data (int_data)
     );
@@ -297,6 +299,12 @@ always
         wb_clk=0;
         forever #(TCLK/2) wb_clk = ~wb_clk;    
     end
+
+// generate sd_clk clock
+always begin
+    sd_clk = 0;
+    forever #(TCLK_SD/2) sd_clk = ~sd_clk;
+end
 
 function [31:0] reg_addr;
     input [7:0] offset;

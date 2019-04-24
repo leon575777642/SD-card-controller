@@ -96,12 +96,8 @@ always @(posedge wb_clk or posedge rst) begin
         if (en_rx_i || en_tx_i) begin
             wbm_adr_o   <=  adr_i;
             xfersize_f  <=  xfersize[`BLKSIZE_W+`BLKCNT_W-1:2] - ((xfersize[1:0] == 2'b0) ? 1 : 0);
-        end else if (wbm_cyc_o & wbm_ack_i) begin
+        end else if ((wbm_we_o && wbm_cyc_o && wbm_ack_i) || (~wbm_we_o && wb2sd_wr_en)) begin
             wbm_adr_o   <=  wbm_adr_o + `MEM_OFFSET;
-            if (wbm_we_o) begin
-                xfersize_f  <=  xfersize_f - 1;
-            end
-        end else if (~wbm_we_o & wb2sd_wr_en) begin
             xfersize_f  <=  xfersize_f - 1;
         end
     end

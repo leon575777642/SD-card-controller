@@ -278,7 +278,9 @@ sd_data_master sd_data_master0(
     .timeout_i		  (data_timeout_reg_sd_clk),
     .d_write_o        (d_write),
     .d_read_o         (d_read),
+    .tx_fifo_rd_en_i  (rd_fifo),
     .tx_fifo_empty_i  (tx_fifo_empty),
+    .rx_fifo_wr_en_i  (we_fifo),
     .rx_fifo_full_i   (rx_fifo_full),
     .xfr_complete_i   (!data_busy),
     .crc_ok_i         (data_crc_ok),
@@ -385,6 +387,7 @@ sd_controller_wb sd_controller_wb0(
     .dma_addr_reg                   (dma_addr_reg_wb_clk),
     .data_int_status_reg            (data_int_status_reg_wb_clk),
     .data_int_enable_reg            (data_int_enable_reg_wb_clk),
+    .wb2sd_fifo_full                (wb2sd_fifo_full),
     .wb2sd_fifo_wr_en               (wb2sd_fifo_wr_en),
     .wb2sd_fifo_din                 (wb2sd_fifo_din)
     );

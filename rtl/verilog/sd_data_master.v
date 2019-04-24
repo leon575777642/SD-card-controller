@@ -57,10 +57,11 @@ module sd_data_master (
            //Output to SD-Host Reg
            output reg d_write_o,
            output reg d_read_o,
-           //To fifo filler
+           //From fifo filler
+           input tx_fifo_rd_en_i,
            input tx_fifo_empty_i,
+           input rx_fifo_wr_en_i,
            input rx_fifo_full_i,
-           //TODO: should be dependent on rx_fifo_empty_i signal (wishbone read all data case)
            //SD-DATA_Host
            input xfr_complete_i,
            input crc_ok_i,
@@ -164,20 +165,8 @@ begin
                 d_read_o <= 0;
                 d_write_o <= 0;
                 watchdog <= watchdog + `DATA_TIMEOUT_W'd1;
-                // if (tx_cycle) begin
-                //     if (tx_fifo_empty_i) begin
-                //         if (!trans_done) begin
-                //             int_status_o[`INT_DATA_CFE] <= 1;
-                //             int_status_o[`INT_DATA_EI] <= 1;
-                //         end
-                //         trans_done <= 1;
-                //         //stop sd_data_serial_host
-                //         d_write_o <= 1;
-                //         d_read_o <= 1;
-                //     end
-                // end
-                // else begin
-                if (!tx_cycle && rx_fifo_full_i) begin
+                if ((!tx_cycle && rx_fifo_wr_en_i && rx_fifo_full_i) ||
+                    (tx_cycle && tx_fifo_rd_en_i && tx_fifo_empty_i)) begin
                     if (!trans_done) begin
                         int_status_o[`INT_DATA_CFE] <= 1;
                         int_status_o[`INT_DATA_EI] <= 1;
